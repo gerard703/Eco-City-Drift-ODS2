@@ -1,0 +1,2320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Eco City Drift: ODS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+    <style>
+        * {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #090d16;
+            color: #f8fafc;
+        }
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.84);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(148, 163, 184, 0.22);
+        }
+        .touch-btn {
+            background: rgba(15, 23, 42, 0.78);
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            backdrop-filter: blur(8px);
+            transition: transform 0.08s ease, background-color 0.12s ease;
+        }
+        .touch-btn:active {
+            transform: scale(0.93);
+            background: rgba(16, 185, 129, 0.38);
+        }
+    </style>
+</head>
+<body class="relative w-full h-full overflow-hidden bg-slate-950 text-slate-50">
+    <!-- Lienzo principal del juego -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- HUD Superior -->
+    <div id="topHud" class="pointer-events-none fixed top-3 left-3 right-3 z-20 flex flex-wrap items-start justify-between gap-2">
+        <!-- Título, Salud y Nivel Eco -->
+        <div class="glass-panel pointer-events-auto rounded-2xl px-3.5 py-2.5 shadow-xl flex flex-col gap-1.5 min-w-[215px]">
+            <div class="flex items-center justify-between gap-3">
+                <span class="text-xs sm:text-sm font-black tracking-wide text-emerald-400">ECO CITY DRIFT: ODS</span>
+                <span id="wantedBadge" class="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                    🟢 SIN ALERTA
+                </span>
+            </div>
+
+            <div class="flex items-center gap-2 text-xs font-bold">
+                <span class="w-12 text-rose-400">SALUD</span>
+                <div class="flex-1 h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div id="healthBar" class="h-full bg-gradient-to-r from-rose-500 to-emerald-400 transition-all duration-200" style="width: 100%;"></div>
+                </div>
+                <span id="healthText" class="w-10 text-right text-slate-200">100%</span>
+            </div>
+
+            <div class="flex items-center gap-2 text-xs font-bold">
+                <span class="w-12 text-emerald-400">ECO</span>
+                <div class="flex-1 h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div id="ecoBar" class="h-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-200" style="width: 50%;"></div>
+                </div>
+                <span id="ecoText" class="w-10 text-right text-emerald-300">50</span>
+            </div>
+        </div>
+
+        <!-- Misión Activa -->
+        <div id="missionHud" class="glass-panel pointer-events-auto rounded-2xl px-3.5 py-2.5 shadow-xl max-w-md flex-1 min-w-[230px]">
+            <div class="flex items-center justify-between gap-2">
+                <span id="missionTitle" class="text-xs sm:text-sm font-extrabold text-amber-300">Misión ODS</span>
+                <span id="missionProgress" class="text-xs font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">0/3</span>
+            </div>
+            <p id="missionDesc" class="text-xs text-slate-200 mt-1 leading-snug">Súbete a tu vehículo para comenzar.</p>
+            <p id="missionHint" class="text-[11px] text-emerald-300/90 mt-1 font-semibold"></p>
+        </div>
+
+        <!-- Botones de Acción Rápida y Minimapa -->
+        <div class="pointer-events-auto flex flex-col items-end gap-2">
+            <div class="flex items-center gap-1.5">
+                <button id="btnSound" type="button" class="glass-panel hover:bg-slate-800 text-xs font-bold px-3 py-2 rounded-xl shadow transition" title="Sonido">
+                    🔊 Sonido
+                </button>
+                <button id="btnPhone" type="button" class="glass-panel hover:bg-slate-800 text-xs font-bold px-3 py-2 rounded-xl shadow text-amber-300 transition" title="Misiones (M)">
+                    📱 Misiones
+                </button>
+                <button id="btnPause" type="button" class="glass-panel hover:bg-slate-800 text-xs font-bold px-3 py-2 rounded-xl shadow transition" title="Pausa (Esc)">
+                    ⏸️ Pausa
+                </button>
+            </div>
+            <div class="relative rounded-full p-1 glass-panel shadow-2xl border border-emerald-400/35">
+                <canvas id="minimapCanvas" width="164" height="164" class="rounded-full block"></canvas>
+                <span class="pointer-events-none absolute top-1.5 left-1/2 -translate-x-1/2 text-[9px] font-black tracking-wider text-emerald-300 bg-slate-950/85 px-1.5 rounded-full border border-emerald-500/30">N</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Banner de notificaciones (Toast) -->
+    <div id="toastBanner" class="pointer-events-none fixed top-24 left-1/2 -translate-x-1/2 z-30 hidden">
+        <div class="glass-panel rounded-2xl px-4 py-2 shadow-xl border border-emerald-400/40 text-xs sm:text-sm font-extrabold text-white text-center">
+            <span id="toastText"></span>
+        </div>
+    </div>
+
+    <!-- Controles táctiles / inferiores -->
+    <div class="pointer-events-none fixed bottom-4 left-4 right-4 z-20 flex items-end justify-between gap-4">
+        <div class="pointer-events-auto flex items-center gap-2">
+            <button type="button" data-key="ArrowLeft" class="touch-btn w-12 h-12 rounded-2xl text-lg font-black text-white flex items-center justify-center shadow-lg" aria-label="Izquierda">◀</button>
+            <button type="button" data-key="ArrowRight" class="touch-btn w-12 h-12 rounded-2xl text-lg font-black text-white flex items-center justify-center shadow-lg" aria-label="Derecha">▶</button>
+        </div>
+        <div class="pointer-events-auto flex items-center gap-2">
+            <button id="btnEnterExit" type="button" class="touch-btn px-4 h-12 rounded-2xl text-xs font-black text-amber-300 flex items-center justify-center shadow-lg">🚗 Subir / Bajar (E)</button>
+            <button type="button" data-key="Space" class="touch-btn px-3.5 h-12 rounded-2xl text-xs font-black text-rose-300 flex items-center justify-center shadow-lg">🛑 Freno</button>
+            <button type="button" data-key="ArrowDown" class="touch-btn w-12 h-12 rounded-2xl text-lg font-black text-white flex items-center justify-center shadow-lg" aria-label="Atrás">▼</button>
+            <button type="button" data-key="ArrowUp" class="touch-btn w-12 h-12 rounded-2xl text-lg font-black text-emerald-300 flex items-center justify-center shadow-lg" aria-label="Acelerar">▲</button>
+        </div>
+    </div>
+
+    <!-- Pantalla de Inicio -->
+    <div id="startModal" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4">
+        <div class="glass-panel max-w-xl w-full rounded-3xl p-6 sm:p-8 shadow-2xl border border-emerald-500/30">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 text-xs font-extrabold mb-3">
+                🌱 MOVILIDAD SOSTENIBLE & OBJETIVOS DE DESARROLLO SOSTENIBLE
+            </div>
+            <h1 class="text-3xl sm:text-4xl font-black tracking-tight text-white">
+                ECO CITY DRIFT: <span class="text-emerald-400">ODS</span>
+            </h1>
+            <p class="text-sm text-slate-300 mt-3 leading-relaxed">
+                Recorre la metrópoli sostenible, súbete a los vehículos especializados de cada misión y completa objetivos variados sobre los ODS. Si atropellas a un peatón, la policía te perseguirá y al atraparte te hará una pregunta sobre los ODS.
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 my-5 text-xs">
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3">
+                    <div class="font-extrabold text-emerald-300">🎮 Conducción</div>
+                    <div class="text-slate-300 mt-1">WASD o Flechas para conducir · <span class="font-bold text-white">E</span> para subir/bajar · <span class="font-bold text-white">Espacio</span> para frenar.</div>
+                </div>
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3">
+                    <div class="font-extrabold text-amber-300">🚗 Choques y Peatones</div>
+                    <div class="text-slate-300 mt-1">Chocar tu coche resta <span class="font-bold text-rose-300">5% de salud</span>. Atropellar peatones activa la policía y el quiz ODS.</div>
+                </div>
+            </div>
+
+            <button id="btnStartGame" type="button" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-base shadow-lg shadow-emerald-500/25 transition cursor-pointer">
+                🚀 EMPEZAR PARTIDA
+            </button>
+        </div>
+    </div>
+
+    <!-- Menú de Misiones (Teléfono Ciudadano) -->
+    <div id="phoneModal" class="fixed inset-0 z-40 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+        <div class="glass-panel max-w-lg w-full rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-700">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h2 class="text-lg font-black text-amber-300">📱 Central de Misiones ODS</h2>
+                    <p class="text-xs text-slate-400">Cada misión requiere su vehículo específico.</p>
+                </div>
+                <button id="btnClosePhone" type="button" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold">
+                    ✕ Cerrar
+                </button>
+            </div>
+            <div id="missionListContainer" class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1"></div>
+        </div>
+    </div>
+
+    <!-- Pregunta Policial sobre los ODS -->
+    <div id="policeModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
+        <div class="glass-panel max-w-lg w-full rounded-3xl p-6 shadow-2xl border border-rose-500/50">
+            <div class="flex items-center gap-2 text-rose-400 text-xs font-black uppercase tracking-wider mb-2">
+                🚨 Control Policial · Pregunta sobre los ODS
+            </div>
+            <h2 id="policeQuestionText" class="text-base sm:text-lg font-extrabold text-white leading-snug mb-4"></h2>
+            <div id="policeOptionsContainer" class="space-y-2.5"></div>
+            <p class="text-[11px] text-slate-400 mt-4">
+                Si aciertas, la policía te deja libre y se retira. Si fallas, te arrestan y se reinicia la misión activa.
+            </p>
+        </div>
+    </div>
+
+    <!-- Menú de Pausa -->
+    <div id="pauseModal" class="fixed inset-0 z-40 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+        <div class="glass-panel max-w-sm w-full rounded-3xl p-6 text-center shadow-2xl border border-slate-700">
+            <h2 class="text-2xl font-black text-white mb-2">⏸️ Juego en Pausa</h2>
+            <p class="text-xs text-slate-300 mb-5">Eco City Drift: ODS</p>
+            <div class="flex flex-col gap-2.5">
+                <button id="btnResume" type="button" class="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm transition cursor-pointer">
+                    ▶️ Continuar
+                </button>
+                <button id="btnRestartWorld" type="button" class="w-full py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition cursor-pointer">
+                    🔄 Reiniciar Ciudad
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pantalla de Has Muerto -->
+    <div id="deadModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/88 backdrop-blur-md p-4">
+        <div class="glass-panel max-w-sm w-full rounded-3xl p-7 text-center shadow-2xl border border-rose-500/50">
+            <h2 class="text-3xl font-black text-rose-400 mb-2">Has muerto</h2>
+            <p class="text-xs text-slate-300 mb-6">Tu salud ha llegado a 0%.</p>
+            <button id="btnDeadRestart" type="button" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-500 to-orange-400 hover:from-rose-400 hover:to-orange-300 text-slate-950 font-black text-sm shadow-lg transition cursor-pointer">
+                Reiniciar
+            </button>
+        </div>
+    </div>
+
+    <!-- Pantalla de Victoria Final (Todas las misiones completadas) -->
+    <div id="victoryModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
+        <div class="glass-panel max-w-md w-full rounded-3xl p-7 text-center shadow-2xl border border-emerald-400/50">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-extrabold mb-3">
+                🏆 OBJETIVOS ODS COMPLETADOS
+            </div>
+            <h2 class="text-3xl font-black text-emerald-400 mb-2">Has salvado la ciudad</h2>
+            <p id="victoryStats" class="text-xs sm:text-sm text-slate-300 mb-6">Has completado todas las misiones sostenibles y el juego ha terminado.</p>
+            <button id="btnVictoryRestart" type="button" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-sm shadow-lg transition cursor-pointer">
+                Jugar de nuevo
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Motor de audio sintético sin dependencias externas
+         */
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            ensureContext() {
+                if (!this.enabled) return null;
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) {
+                        this.ctx = new AudioCtx();
+                    }
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume().catch(() => {});
+                }
+                return this.ctx;
+            }
+
+            playTone(freq, duration = 0.14, type = 'sine', volume = 0.08) {
+                const ctx = this.ensureContext();
+                if (!ctx) return;
+                try {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+                    gain.gain.setValueAtTime(volume, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start();
+                    osc.stop(ctx.currentTime + duration);
+                } catch (_) {}
+            }
+
+            playCrash() {
+                this.playTone(130, 0.18, 'sawtooth', 0.11);
+                setTimeout(() => this.playTone(82, 0.16, 'square', 0.08), 45);
+            }
+
+            playSiren() {
+                this.playTone(760, 0.14, 'triangle', 0.08);
+                setTimeout(() => this.playTone(540, 0.16, 'triangle', 0.08), 140);
+            }
+
+            playCheckpoint() {
+                this.playTone(587.33, 0.12, 'triangle', 0.09);
+                setTimeout(() => this.playTone(880, 0.18, 'sine', 0.1), 110);
+            }
+
+            playMissionComplete() {
+                const notes = [523.25, 659.25, 783.99, 1046.5];
+                notes.forEach((n, idx) => {
+                    setTimeout(() => this.playTone(n, 0.18, 'triangle', 0.1), idx * 95);
+                });
+            }
+        }
+
+        /**
+         * Juego principal Eco City Drift: ODS
+         */
+        class EcoCityDriftGame {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.minimapCanvas = document.getElementById('minimapCanvas');
+                this.minimapCtx = this.minimapCanvas.getContext('2d');
+                this.sound = new SoundEngine();
+
+                // Dimensiones del mundo urbano
+                this.worldSize = 4200;
+                this.roadHalfWidth = 115;
+                this.sidewalkWidth = 34;
+
+                // Calles principales (ejes X e Y) y circunvalación
+                this.roadCoords = [650, 1450, 2100, 2750, 3550];
+                this.ringMin = 420;
+                this.ringMax = this.worldSize - 420;
+
+                // Estado general
+                this.gameState = 'START'; // START | PLAYING | PAUSED | QUIZ | DEAD | WON
+                this.health = 100;
+                this.ecoScore = 50;
+                this.completedMissionIds = new Set();
+                this.wantedLevel = 0;
+                this.policeCooldown = 0;
+                this.policeCaughtCooldown = 0;
+                this.lastCollisionTime = 0;
+                this.screenShake = 0;
+                this.toastTimeout = null;
+
+                // Controles
+                this.keys = {};
+                this.lastFrameTime = performance.now();
+
+                // Definición de misiones variadas y sus vehículos específicos
+                this.missionTemplates = [
+                    {
+                        id: 'ods7_solar',
+                        ods: 'ODS 7 · Energía Limpia',
+                        title: 'Ruta de Estaciones Solares',
+                        vehicleType: 'solar_van',
+                        vehicleLabel: 'Furgoneta Solar',
+                        mode: 'checkpoints',
+                        description: 'Súbete a la Furgoneta Solar y atraviesa las 3 estaciones de carga limpia marcadas en la ciudad.',
+                        checkpoints: [
+                            { x: 1450, y: 1450, label: 'Estación Solar Norte' },
+                            { x: 2750, y: 1450, label: 'Planta Fotovoltaica Este' },
+                            { x: 2100, y: 2750, label: 'Hub Verde Sur' }
+                        ]
+                    },
+                    {
+                        id: 'ods12_recycling',
+                        ods: 'ODS 12 · Producción y Consumo',
+                        title: 'Recogida en Puntos de Reciclaje',
+                        vehicleType: 'recycling_truck',
+                        vehicleLabel: 'Camión de Reciclaje',
+                        mode: 'dwell_zones',
+                        description: 'Conduce el Camión de Reciclaje y quédate 1.8s en cada punto limpio para compactar residuos.',
+                        dwellSeconds: 1.8,
+                        zones: [
+                            { x: 1450, y: 2100, label: 'Punto Limpio Oeste' },
+                            { x: 2100, y: 1450, label: 'Centro de Clasificación Norte' },
+                            { x: 2750, y: 2100, label: 'Ecoparque Este' }
+                        ]
+                    },
+                    {
+                        id: 'ods13_climate',
+                        ods: 'ODS 13 · Acción por el Clima',
+                        title: 'Interceptor Cero Emisiones',
+                        vehicleType: 'eco_car',
+                        vehicleLabel: 'Coche Cero Emisiones',
+                        mode: 'intercept_polluters',
+                        description: 'Súbete al Coche Cero Emisiones y acércate a los 3 vehículos contaminantes para convencerlos de cambiar a modo ECO.',
+                        targetCount: 3
+                    },
+                    {
+                        id: 'ods11_transit',
+                        ods: 'ODS 11 · Ciudades Sostenibles',
+                        title: 'Línea Exprés de Autobús Eléctrico',
+                        vehicleType: 'electric_bus',
+                        vehicleLabel: 'Autobús Eléctrico',
+                        mode: 'bus_route',
+                        description: 'Conduce el Autobús Eléctrico y detente brevemente (1.6s) en cada parada metropolitana.',
+                        dwellSeconds: 1.6,
+                        stops: [
+                            { x: 1450, y: 2750, label: 'Parada Parque Central' },
+                            { x: 2750, y: 2750, label: 'Parada Distrito Tecnológico' },
+                            { x: 2100, y: 650, label: 'Parada Paseo del Norte' }
+                        ]
+                    }
+                ];
+
+                // Banco de preguntas sobre los ODS para controles policiales
+                this.odsQuestions = [
+                    {
+                        question: '¿Qué busca principalmente el ODS 7 (Energía asequible y no contaminante)?',
+                        options: [
+                            'Garantizar el acceso a energía limpia, fiable y moderna para todos',
+                            'Aumentar el uso de carbón en zonas urbanas',
+                            'Eliminar el transporte público eléctrico'
+                        ],
+                        correctIndex: 0
+                    },
+                    {
+                        question: '¿Qué promueve el ODS 12 (Producción y consumo responsables)?',
+                        options: [
+                            'Generar más residuos plásticos de un solo uso',
+                            'Reducir desechos mediante prevención, reutilización y reciclaje',
+                            'Desperdiciar agua potable en el riego urbano'
+                        ],
+                        correctIndex: 1
+                    },
+                    {
+                        question: '¿Por qué es clave el transporte sostenible dentro del ODS 11 y el ODS 13?',
+                        options: [
+                            'Porque no necesita mantenimiento en las calles',
+                            'Porque reduce emisiones contaminantes y mejora la calidad del aire',
+                            'Porque aumenta el ruido de tráfico en los barrios'
+                        ],
+                        correctIndex: 1
+                    },
+                    {
+                        question: '¿Cuál es una medida directa alineada con el ODS 13 (Acción por el clima)?',
+                        options: [
+                            'Fomentar la movilidad cero emisiones y las energías renovables',
+                            'Talar árboles de las avenidas principales',
+                            'Dejar vehículos pesados encendidos sin uso'
+                        ],
+                        correctIndex: 0
+                    }
+                ];
+
+                this.buildWorld();
+                this.bindEvents();
+                this.resizeCanvas();
+                this.startMission('ods7_solar', false);
+                this.updateTopHUD();
+                this.updateMissionHUD();
+                requestAnimationFrame((t) => this.loop(t));
+            }
+
+            /**
+             * Construye la red de calles, edificios, vehículos y peatones
+             */
+            buildWorld() {
+                this.buildings = [];
+                this.vehicles = [];
+                this.pedestrians = [];
+                this.particles = [];
+
+                const swSpan = this.roadHalfWidth + this.sidewalkWidth;
+                const edges = [0, ...this.roadCoords, this.worldSize];
+                const buildingColors = ['#1e293b', '#172554', '#1f2937', '#0f766e', '#312e81', '#1e3a8a'];
+
+                // Generar manzanas de edificios y zonas verdes entre carreteras
+                for (let ix = 0; ix < edges.length - 1; ix++) {
+                    for (let iy = 0; iy < edges.length - 1; iy++) {
+                        const left = edges[ix] + (ix === 0 ? 40 : swSpan + 18);
+                        const right = edges[ix + 1] - (ix === edges.length - 2 ? 40 : swSpan + 18);
+                        const top = edges[iy] + (iy === 0 ? 40 : swSpan + 18);
+                        const bottom = edges[iy + 1] - (iy === edges.length - 2 ? 40 : swSpan + 18);
+
+                        const w = right - left;
+                        const h = bottom - top;
+                        if (w > 110 && h > 110) {
+                            const isPark = (ix + iy) % 4 === 1;
+                            this.buildings.push({
+                                x: left,
+                                y: top,
+                                w,
+                                h,
+                                isPark,
+                                color: isPark ? '#064e3b' : buildingColors[(ix * 3 + iy) % buildingColors.length]
+                            });
+                        }
+                    }
+                }
+
+                // Vehículos especializados de cada misión colocados cerca de la salida y zonas clave
+                const missionVehicles = [
+                    {
+                        id: 'veh_solar_van',
+                        type: 'solar_van',
+                        label: 'Furgoneta Solar',
+                        x: 1450,
+                        y: 1360,
+                        angle: 0,
+                        w: 54,
+                        h: 28,
+                        maxSpeed: 340,
+                        color: '#10b981',
+                        accent: '#a7f3d0',
+                        spawnX: 1450,
+                        spawnY: 1360,
+                        spawnAngle: 0
+                    },
+                    {
+                        id: 'veh_recycling_truck',
+                        type: 'recycling_truck',
+                        label: 'Camión de Reciclaje',
+                        x: 1450,
+                        y: 2010,
+                        angle: 0,
+                        w: 64,
+                        h: 30,
+                        maxSpeed: 295,
+                        color: '#0ea5e9',
+                        accent: '#bae6fd',
+                        spawnX: 1450,
+                        spawnY: 2010,
+                        spawnAngle: 0
+                    },
+                    {
+                        id: 'veh_eco_car',
+                        type: 'eco_car',
+                        label: 'Coche Cero Emisiones',
+                        x: 2100,
+                        y: 2010,
+                        angle: 0,
+                        w: 48,
+                        h: 25,
+                        maxSpeed: 380,
+                        color: '#34d399',
+                        accent: '#d1fae5',
+                        spawnX: 2100,
+                        spawnY: 2010,
+                        spawnAngle: 0
+                    },
+                    {
+                        id: 'veh_electric_bus',
+                        type: 'electric_bus',
+                        label: 'Autobús Eléctrico',
+                        x: 1450,
+                        y: 2660,
+                        angle: 0,
+                        w: 74,
+                        h: 32,
+                        maxSpeed: 285,
+                        color: '#f59e0b',
+                        accent: '#fef3c7',
+                        spawnX: 1450,
+                        spawnY: 2660,
+                        spawnAngle: 0
+                    }
+                ];
+
+                missionVehicles.forEach((mv) => {
+                    this.vehicles.push({
+                        ...mv,
+                        speed: 0,
+                        vx: 0,
+                        vy: 0,
+                        aiTimer: 1.5,
+                        convinced: false
+                    });
+                });
+
+                // Vehículos contaminantes para la misión ODS 13
+                const polluterSpots = [
+                    { x: 2750, y: 1450, angle: Math.PI / 2 },
+                    { x: 2100, y: 2750, angle: Math.PI },
+                    { x: 3550, y: 2100, angle: -Math.PI / 2 }
+                ];
+                polluterSpots.forEach((ps, idx) => {
+                    this.vehicles.push({
+                        id: `veh_polluter_${idx}`,
+                        type: 'polluter',
+                        label: 'Vehículo Contaminante',
+                        x: ps.x,
+                        y: ps.y,
+                        angle: ps.angle,
+                        w: 48,
+                        h: 25,
+                        maxSpeed: 235,
+                        speed: 195,
+                        vx: Math.cos(ps.angle) * 195,
+                        vy: Math.sin(ps.angle) * 195,
+                        color: '#64748b',
+                        accent: '#334155',
+                        aiTimer: 1.5 + idx * 0.6,
+                        convinced: false,
+                        spawnX: ps.x,
+                        spawnY: ps.y,
+                        spawnAngle: ps.angle
+                    });
+                });
+
+                // Patrullas policiales en carretera
+                const policeSpots = [
+                    { x: 650, y: 1450, angle: Math.PI / 2 },
+                    { x: 2750, y: 650, angle: 0 },
+                    { x: 3550, y: 2750, angle: Math.PI }
+                ];
+                policeSpots.forEach((pSpot, idx) => {
+                    this.vehicles.push({
+                        id: `veh_police_${idx}`,
+                        type: 'police',
+                        label: 'Patrulla ODS',
+                        x: pSpot.x,
+                        y: pSpot.y,
+                        angle: pSpot.angle,
+                        w: 50,
+                        h: 26,
+                        maxSpeed: 355,
+                        speed: 210,
+                        vx: Math.cos(pSpot.angle) * 210,
+                        vy: Math.sin(pSpot.angle) * 210,
+                        color: '#1d4ed8',
+                        accent: '#f8fafc',
+                        aiTimer: 1.4 + idx * 0.5,
+                        convinced: false,
+                        spawnX: pSpot.x,
+                        spawnY: pSpot.y,
+                        spawnAngle: pSpot.angle
+                    });
+                });
+
+                // Coches de tráfico urbano moderado en carretera
+                const trafficColors = ['#e11d48', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899', '#84cc16'];
+                for (let i = 0; i < 14; i++) {
+                    const horizontal = i % 2 === 0;
+                    const laneCoord = this.roadCoords[i % this.roadCoords.length];
+                    const alongCoord = this.roadCoords[(i + 2) % this.roadCoords.length];
+                    const dirAngle = horizontal ? (i % 4 === 0 ? 0 : Math.PI) : (i % 4 === 1 ? Math.PI / 2 : -Math.PI / 2);
+                    const spd = 175 + (i % 4) * 20;
+                    const x = horizontal ? alongCoord : laneCoord;
+                    const y = horizontal ? laneCoord : alongCoord;
+
+                    this.vehicles.push({
+                        id: `veh_traffic_${i}`,
+                        type: 'traffic',
+                        label: 'Vehículo Urbano',
+                        x,
+                        y,
+                        angle: dirAngle,
+                        w: 48,
+                        h: 25,
+                        maxSpeed: 260,
+                        speed: spd,
+                        vx: Math.cos(dirAngle) * spd,
+                        vy: Math.sin(dirAngle) * spd,
+                        color: trafficColors[i % trafficColors.length],
+                        accent: '#cbd5e1',
+                        aiTimer: 1.5 + (i % 5) * 0.4,
+                        convinced: false,
+                        spawnX: x,
+                        spawnY: y,
+                        spawnAngle: dirAngle
+                    });
+                }
+
+                // Peatones estrictamente sobre las aceras
+                const pedColors = ['#f43f5e', '#38bdf8', '#fbbf24', '#a855f7', '#fb7185', '#4ade80'];
+                for (let i = 0; i < 65; i++) {
+                    const pt = this.getSidewalkPoint(i);
+                    const ang = Math.random() * Math.PI * 2;
+                    const spd = 42 + Math.random() * 14;
+                    this.pedestrians.push({
+                        x: pt.x,
+                        y: pt.y,
+                        vx: Math.cos(ang) * spd,
+                        vy: Math.sin(ang) * spd,
+                        walkPhase: Math.random() * Math.PI * 2,
+                        turnTimer: 1.2 + Math.random() * 2,
+                        color: pedColors[i % pedColors.length]
+                    });
+                }
+
+                // Jugador inicial en la acera junto a la Furgoneta Solar
+                this.player = {
+                    x: 1450,
+                    y: 1320,
+                    vx: 0,
+                    vy: 0,
+                    angle: 0,
+                    speed: 0,
+                    inVehicleId: null,
+                    interactCooldown: 0,
+                    walkPhase: 0
+                };
+
+                this.camera = {
+                    x: this.player.x,
+                    y: this.player.y
+                };
+            }
+
+            /**
+             * Inicia o reinicia una misión por su identificador
+             */
+            startMission(missionId, resetVehiclePosition = false) {
+                const tpl = this.missionTemplates.find((m) => m.id === missionId) || this.missionTemplates[0];
+                let totalSteps = 3;
+                if (tpl.mode === 'checkpoints') totalSteps = tpl.checkpoints.length;
+                else if (tpl.mode === 'dwell_zones') totalSteps = tpl.zones.length;
+                else if (tpl.mode === 'bus_route') totalSteps = tpl.stops.length;
+                else if (tpl.mode === 'intercept_polluters') totalSteps = tpl.targetCount || 3;
+
+                this.activeMission = {
+                    ...tpl,
+                    stepIndex: 0,
+                    totalSteps,
+                    dwellTimer: 0
+                };
+
+                // Restaurar vehículos contaminantes si se activa o reinicia la misión ODS 13
+                if (tpl.mode === 'intercept_polluters') {
+                    this.vehicles.forEach((v) => {
+                        if (v.type === 'polluter') {
+                            v.convinced = false;
+                            v.color = '#64748b';
+                            if (resetVehiclePosition && typeof v.spawnX === 'number') {
+                                v.x = v.spawnX;
+                                v.y = v.spawnY;
+                                v.angle = v.spawnAngle || 0;
+                            }
+                        }
+                    });
+                }
+
+                // Si se reinicia la misión tras fallo policial, recolocar el vehículo de misión si el jugador lo lleva
+                if (resetVehiclePosition) {
+                    const missionVeh = this.vehicles.find((v) => v.type === tpl.vehicleType);
+                    if (missionVeh && typeof missionVeh.spawnX === 'number') {
+                        missionVeh.x = missionVeh.spawnX;
+                        missionVeh.y = missionVeh.spawnY;
+                        missionVeh.angle = missionVeh.spawnAngle || 0;
+                        missionVeh.speed = 0;
+                        missionVeh.vx = 0;
+                        missionVeh.vy = 0;
+                        if (this.player.inVehicleId === missionVeh.id) {
+                            this.player.x = missionVeh.x;
+                            this.player.y = missionVeh.y;
+                            this.player.angle = missionVeh.angle;
+                            this.player.speed = 0;
+                        }
+                    }
+                }
+
+                this.updateMissionHUD();
+            }
+
+            /**
+             * Comprueba si un punto está sobre la calzada principal o la circunvalación
+             */
+            isOnRoad(x, y) {
+                if (x < 0 || y < 0 || x > this.worldSize || y > this.worldSize) return false;
+                for (const c of this.roadCoords) {
+                    if (Math.abs(y - c) <= this.roadHalfWidth) return true;
+                    if (Math.abs(x - c) <= this.roadHalfWidth) return true;
+                }
+                const nearRingX = Math.abs(x - this.ringMin) <= this.roadHalfWidth || Math.abs(x - this.ringMax) <= this.roadHalfWidth;
+                const inRingY = y >= this.ringMin - this.roadHalfWidth && y <= this.ringMax + this.roadHalfWidth;
+                if (nearRingX && inRingY) return true;
+
+                const nearRingY = Math.abs(y - this.ringMin) <= this.roadHalfWidth || Math.abs(y - this.ringMax) <= this.roadHalfWidth;
+                const inRingX = x >= this.ringMin - this.roadHalfWidth && x <= this.ringMax + this.roadHalfWidth;
+                if (nearRingY && inRingX) return true;
+
+                return false;
+            }
+
+            /**
+             * Comprueba si un punto está dentro de la franja de acera
+             */
+            isOnSidewalk(x, y) {
+                if (x < 12 || y < 12 || x > this.worldSize - 12 || y > this.worldSize - 12) return false;
+                if (this.isOnRoad(x, y)) return false;
+
+                const swSpan = this.roadHalfWidth + this.sidewalkWidth;
+                for (const c of this.roadCoords) {
+                    if (Math.abs(y - c) <= swSpan && x >= 12 && x <= this.worldSize - 12) return true;
+                    if (Math.abs(x - c) <= swSpan && y >= 12 && y <= this.worldSize - 12) return true;
+                }
+                return false;
+            }
+
+            /**
+             * Genera un punto válido en la acera para colocar o reubicar peatones
+             */
+            getSidewalkPoint(seed = 0) {
+                const roadIdx = seed % this.roadCoords.length;
+                const baseCoord = this.roadCoords[roadIdx];
+                const sideOffset = (seed % 2 === 0 ? 1 : -1) * (this.roadHalfWidth + this.sidewalkWidth * 0.55);
+                const along = 260 + (((seed * 437) % (this.worldSize - 520)));
+
+                if (seed % 4 < 2) {
+                    return { x: along, y: baseCoord + sideOffset };
+                }
+                return { x: baseCoord + sideOffset, y: along };
+            }
+
+            /**
+             * Mantiene a una entidad dentro del mapa y resuelve colisiones con edificios
+             */
+            resolveBuildingCollisions(entity, radius) {
+                const margin = Math.max(16, radius);
+                entity.x = Math.max(margin, Math.min(this.worldSize - margin, entity.x));
+                entity.y = Math.max(margin, Math.min(this.worldSize - margin, entity.y));
+
+                for (const b of this.buildings) {
+                    const closestX = Math.max(b.x, Math.min(entity.x, b.x + b.w));
+                    const closestY = Math.max(b.y, Math.min(entity.y, b.y + b.h));
+                    const dx = entity.x - closestX;
+                    const dy = entity.y - closestY;
+                    const distSq = dx * dx + dy * dy;
+
+                    if (distSq < radius * radius) {
+                        const dist = Math.sqrt(distSq);
+                        if (dist > 0.0001) {
+                            const overlap = radius - dist;
+                            entity.x += (dx / dist) * overlap;
+                            entity.y += (dy / dist) * overlap;
+                        } else {
+                            entity.x += radius;
+                        }
+                        if (typeof entity.speed === 'number') {
+                            entity.speed *= 0.5;
+                        }
+                    }
+                }
+            }
+
+            /**
+             * Completa la misión activa y, si eran todas, muestra "Has salvado la ciudad" y termina el juego
+             */
+            completeMission() {
+                const m = this.activeMission;
+                if (!m) return;
+
+                this.completedMissionIds.add(m.id);
+                this.ecoScore = Math.min(100, this.ecoScore + 15);
+                this.sound.playMissionComplete();
+                this.spawnParticles(this.player.x, this.player.y, '#10b981', 26);
+                this.updateTopHUD();
+
+                // Comprobar si se han completado todas las misiones del juego
+                if (this.completedMissionIds.size >= this.missionTemplates.length) {
+                    this.triggerCitySaved();
+                    return;
+                }
+
+                this.showToast(`🏆 ¡Misión completada: ${m.title}! (+15 Eco)`);
+                const nextPending = this.missionTemplates.find((t) => !this.completedMissionIds.has(t.id));
+                if (nextPending) {
+                    this.startMission(nextPending.id, false);
+                }
+            }
+
+            /**
+             * Finaliza la partida mostrando el mensaje "Has salvado la ciudad"
+             */
+            triggerCitySaved() {
+                this.gameState = 'WON';
+                this.keys = {};
+                if (this.player.inVehicleId) {
+                    const veh = this.vehicles.find((v) => v.id === this.player.inVehicleId);
+                    if (veh) {
+                        veh.speed = 0;
+                        veh.vx = 0;
+                        veh.vy = 0;
+                    }
+                }
+                this.player.speed = 0;
+                this.player.vx = 0;
+                this.player.vy = 0;
+
+                document.getElementById('phoneModal').classList.add('hidden');
+                document.getElementById('pauseModal').classList.add('hidden');
+                document.getElementById('policeModal').classList.add('hidden');
+                document.getElementById('deadModal').classList.add('hidden');
+                document.getElementById('victoryStats').textContent =
+                    `Has completado las ${this.missionTemplates.length} misiones ODS con un nivel Eco de ${Math.round(this.ecoScore)}%. El juego ha terminado.`;
+                document.getElementById('victoryModal').classList.remove('hidden');
+            }
+
+            /**
+             * Devuelve el objetivo actual de la misión activa
+             */
+            getCurrentMissionTarget() {
+                const m = this.activeMission;
+                if (!m) return null;
+
+                if (m.mode === 'checkpoints') {
+                    return m.checkpoints[m.stepIndex] || null;
+                }
+                if (m.mode === 'dwell_zones') {
+                    return m.zones[m.stepIndex] || null;
+                }
+                if (m.mode === 'bus_route') {
+                    return m.stops[m.stepIndex] || null;
+                }
+                if (m.mode === 'intercept_polluters') {
+                    let nearest = null;
+                    let bestDist = Infinity;
+                    for (const v of this.vehicles) {
+                        if (v.type === 'polluter' && !v.convinced) {
+                            const d = Math.hypot(v.x - this.player.x, v.y - this.player.y);
+                            if (d < bestDist) {
+                                bestDist = d;
+                                nearest = v;
+                            }
+                        }
+                    }
+                    return nearest ? { x: nearest.x, y: nearest.y, label: 'Vehículo Contaminante' } : null;
+                }
+                return null;
+            }
+
+            /**
+             * Actualiza el progreso de la misión activa
+             */
+            updateActiveMission(dt) {
+                const m = this.activeMission;
+                if (!m) return;
+
+                if (m.stepIndex >= m.totalSteps) {
+                    this.completeMission();
+                    return;
+                }
+
+                const currentVeh = this.player.inVehicleId
+                    ? this.vehicles.find((v) => v.id === this.player.inVehicleId)
+                    : null;
+
+                const usingRequiredVehicle = Boolean(currentVeh && currentVeh.type === m.vehicleType);
+                const target = this.getCurrentMissionTarget();
+                if (!target) {
+                    if (m.mode === 'intercept_polluters') {
+                        this.completeMission();
+                    }
+                    return;
+                }
+
+                const dist = Math.hypot(this.player.x - target.x, this.player.y - target.y);
+
+                if (!usingRequiredVehicle) {
+                    m.dwellTimer = 0;
+                    this.updateMissionHUD();
+                    return;
+                }
+
+                if (m.mode === 'checkpoints') {
+                    if (dist < 130) {
+                        m.stepIndex += 1;
+                        this.health = Math.min(100, this.health + 10);
+                        this.ecoScore = Math.min(100, this.ecoScore + 6);
+                        this.sound.playCheckpoint();
+                        this.spawnParticles(target.x, target.y, '#10b981', 16);
+
+                        if (m.stepIndex >= m.totalSteps) {
+                            this.completeMission();
+                            return;
+                        }
+                        this.showToast(`✅ ${target.label} completada (${m.stepIndex}/${m.totalSteps}) · +10% Salud`);
+                        this.updateTopHUD();
+                    }
+                } else if (m.mode === 'dwell_zones' || m.mode === 'bus_route') {
+                    if (dist < 130) {
+                        m.dwellTimer += dt;
+                        if (m.dwellTimer >= m.dwellSeconds) {
+                            m.dwellTimer = 0;
+                            m.stepIndex += 1;
+                            this.health = Math.min(100, this.health + 10);
+                            this.ecoScore = Math.min(100, this.ecoScore + 7);
+                            this.sound.playCheckpoint();
+                            this.spawnParticles(target.x, target.y, '#34d399', 18);
+
+                            if (m.stepIndex >= m.totalSteps) {
+                                this.completeMission();
+                                return;
+                            }
+                            this.showToast(`✅ Parada completada en ${target.label} (${m.stepIndex}/${m.totalSteps}) · +10% Salud`);
+                            this.updateTopHUD();
+                        }
+                    } else {
+                        m.dwellTimer = Math.max(0, m.dwellTimer - dt * 0.6);
+                    }
+                } else if (m.mode === 'intercept_polluters') {
+                    for (const v of this.vehicles) {
+                        if (v.type === 'polluter' && !v.convinced) {
+                            const d = Math.hypot(v.x - this.player.x, v.y - this.player.y);
+                            if (d < 140) {
+                                v.convinced = true;
+                                v.color = '#10b981';
+                                m.stepIndex += 1;
+                                this.health = Math.min(100, this.health + 10);
+                                this.ecoScore = Math.min(100, this.ecoScore + 8);
+                                this.sound.playCheckpoint();
+                                this.spawnParticles(v.x, v.y, '#38bdf8', 18);
+
+                                if (m.stepIndex >= m.totalSteps) {
+                                    this.completeMission();
+                                    return;
+                                }
+                                this.showToast(`🌿 ¡Vehículo convertido a Cero Emisiones! (${m.stepIndex}/${m.totalSteps}) · +10% Salud`);
+                                this.updateTopHUD();
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                this.updateMissionHUD();
+            }
+
+            /**
+             * Lanza el control policial con una pregunta sobre los ODS al atrapar al jugador
+             */
+            triggerPoliceQuiz() {
+                if (this.gameState !== 'PLAYING') return;
+                this.gameState = 'QUIZ';
+                this.sound.playSiren();
+
+                const qIdx = Math.floor(Math.random() * this.odsQuestions.length);
+                const qData = this.odsQuestions[qIdx];
+                this.currentQuiz = qData;
+
+                const qTextEl = document.getElementById('policeQuestionText');
+                const optContainer = document.getElementById('policeOptionsContainer');
+                qTextEl.textContent = qData.question;
+                optContainer.innerHTML = '';
+
+                qData.options.forEach((optText, idx) => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'w-full text-left px-4 py-3 rounded-2xl bg-slate-900 hover:bg-emerald-500/20 border border-slate-700 hover:border-emerald-400 text-xs sm:text-sm font-bold text-slate-100 transition cursor-pointer';
+                    btn.textContent = optText;
+                    btn.addEventListener('click', () => {
+                        this.resolvePoliceAnswer(idx === qData.correctIndex);
+                    });
+                    optContainer.appendChild(btn);
+                });
+
+                document.getElementById('policeModal').classList.remove('hidden');
+            }
+
+            /**
+             * Resuelve la respuesta de la policía: si acierta lo dejan ir y se retiran; si falla lo arrestan y reinicia la misión
+             */
+            resolvePoliceAnswer(isCorrect) {
+                document.getElementById('policeModal').classList.add('hidden');
+                this.gameState = 'PLAYING';
+                this.policeCaughtCooldown = 3.5;
+
+                if (isCorrect) {
+                    this.ecoScore = Math.min(100, this.ecoScore + 10);
+                    this.wantedLevel = 0;
+                    this.policeCooldown = 4;
+                    this.vehicles.forEach((v) => {
+                        if (v.type === 'police') {
+                            v.speed = v.maxSpeed * 0.65;
+                            v.angle = this.normalizeAngle(v.angle + Math.PI / 2);
+                        }
+                    });
+                    this.showToast('✅ ¡Respuesta correcta sobre los ODS! La policía te deja ir y se retira (+10 Eco).');
+                } else {
+                    this.ecoScore = Math.max(0, this.ecoScore - 15);
+                    this.wantedLevel = 0;
+                    this.policeCooldown = 4;
+
+                    // Arresto y reinicio de la misión activa desde el paso 0
+                    if (this.player.inVehicleId) {
+                        const veh = this.vehicles.find((v) => v.id === this.player.inVehicleId);
+                        if (veh) {
+                            veh.speed = 0;
+                            veh.vx = 0;
+                            veh.vy = 0;
+                        }
+                    }
+                    this.player.speed = 0;
+                    this.player.vx = 0;
+                    this.player.vy = 0;
+
+                    const missionToReset = this.activeMission ? this.activeMission.id : 'ods7_solar';
+                    this.startMission(missionToReset, true);
+                    this.showToast('🚔 ¡Respuesta incorrecta! Has sido arrestado y se ha reiniciado la misión desde cero.');
+                }
+
+                this.updateTopHUD();
+                this.updateMissionHUD();
+            }
+
+            /**
+             * Alterna entre subir a un vehículo cercano y bajar del vehículo actual
+             */
+            toggleEnterExitVehicle() {
+                if (this.gameState !== 'PLAYING' || this.player.interactCooldown > 0) return;
+                this.player.interactCooldown = 0.35;
+
+                if (this.player.inVehicleId) {
+                    const veh = this.vehicles.find((v) => v.id === this.player.inVehicleId);
+                    this.player.inVehicleId = null;
+                    this.player.speed = 0;
+                    if (veh) {
+                        veh.speed = 0;
+                        const sideAngle = veh.angle + Math.PI / 2;
+                        this.player.x = veh.x + Math.cos(sideAngle) * 28;
+                        this.player.y = veh.y + Math.sin(sideAngle) * 28;
+                        this.resolveBuildingCollisions(this.player, 14);
+                    }
+                    this.showToast('🚶 Has bajado del vehículo.');
+                    this.updateMissionHUD();
+                    return;
+                }
+
+                // Buscar vehículo más cercano al jugador
+                let closest = null;
+                let bestDist = 78;
+                for (const v of this.vehicles) {
+                    if (v.type === 'police') continue;
+                    const d = Math.hypot(v.x - this.player.x, v.y - this.player.y);
+                    if (d < bestDist) {
+                        bestDist = d;
+                        closest = v;
+                    }
+                }
+
+                if (closest) {
+                    this.player.inVehicleId = closest.id;
+                    this.player.x = closest.x;
+                    this.player.y = closest.y;
+                    this.player.angle = closest.angle;
+                    this.player.speed = closest.speed || 0;
+                    this.sound.playTone(440, 0.1, 'sine', 0.06);
+                    this.showToast(`🚗 Subiste a: ${closest.label}`);
+                    this.updateMissionHUD();
+                } else {
+                    this.showToast('Acércate a un vehículo para subirte con E.');
+                }
+            }
+
+            /**
+             * Actualiza el jugador a pie o conduciendo su vehículo
+             */
+            updatePlayer(dt) {
+                if (this.player.interactCooldown > 0) {
+                    this.player.interactCooldown = Math.max(0, this.player.interactCooldown - dt);
+                }
+
+                const accelInput = (this.keys['KeyW'] || this.keys['ArrowUp'] ? 1 : 0) - (this.keys['KeyS'] || this.keys['ArrowDown'] ? 1 : 0);
+                const turnInput = (this.keys['KeyD'] || this.keys['ArrowRight'] ? 1 : 0) - (this.keys['KeyA'] || this.keys['ArrowLeft'] ? 1 : 0);
+                const brakePressed = Boolean(this.keys['Space']);
+
+                if (this.player.inVehicleId) {
+                    const veh = this.vehicles.find((v) => v.id === this.player.inVehicleId);
+                    if (!veh) {
+                        this.player.inVehicleId = null;
+                        return;
+                    }
+
+                    const accelRate = 520;
+                    const reverseMax = -165;
+
+                    if (brakePressed) {
+                        veh.speed *= Math.pow(0.04, dt);
+                        if (Math.abs(veh.speed) < 8) veh.speed = 0;
+                    } else if (accelInput > 0) {
+                        veh.speed = Math.min(veh.maxSpeed, veh.speed + accelRate * dt);
+                    } else if (accelInput < 0) {
+                        veh.speed = Math.max(reverseMax, veh.speed - accelRate * 0.85 * dt);
+                    } else {
+                        veh.speed *= Math.pow(0.22, dt);
+                        if (Math.abs(veh.speed) < 5) veh.speed = 0;
+                    }
+
+                    const speedRatio = Math.min(1, Math.abs(veh.speed) / 90);
+                    const turnFactor = veh.speed >= -2 ? 1 : -1;
+                    const effectiveTurn = turnInput * (0.45 + 0.55 * speedRatio) * 3.1 * turnFactor;
+                    if (Math.abs(veh.speed) > 4 || turnInput !== 0) {
+                        veh.angle = this.normalizeAngle(veh.angle + effectiveTurn * dt);
+                    }
+
+                    veh.vx = Math.cos(veh.angle) * veh.speed;
+                    veh.vy = Math.sin(veh.angle) * veh.speed;
+                    veh.x += veh.vx * dt;
+                    veh.y += veh.vy * dt;
+
+                    this.resolveBuildingCollisions(veh, Math.max(veh.w, veh.h) * 0.44);
+
+                    this.player.x = veh.x;
+                    this.player.y = veh.y;
+                    this.player.angle = veh.angle;
+                    this.player.speed = veh.speed;
+                    this.player.vx = veh.vx;
+                    this.player.vy = veh.vy;
+
+                    // Estela ecológica en vehículos limpios en movimiento
+                    if (Math.abs(veh.speed) > 120 && Math.random() < 0.35 && (veh.type === 'solar_van' || veh.type === 'eco_car' || veh.type === 'electric_bus')) {
+                        this.spawnParticles(
+                            veh.x - Math.cos(veh.angle) * (veh.w * 0.45),
+                            veh.y - Math.sin(veh.angle) * (veh.w * 0.45),
+                            '#34d399',
+                            1
+                        );
+                    }
+                } else {
+                    // Movimiento a pie
+                    let mx = turnInput;
+                    let my = accelInput;
+                    const len = Math.hypot(mx, my);
+                    if (len > 0) {
+                        mx /= len;
+                        my /= len;
+                        const walkSpd = 195;
+                        this.player.vx = mx * walkSpd;
+                        this.player.vy = my * walkSpd;
+                        this.player.x += this.player.vx * dt;
+                        this.player.y += this.player.vy * dt;
+                        this.player.angle = Math.atan2(my, mx);
+                        this.player.walkPhase += dt * 10;
+                    } else {
+                        this.player.vx = 0;
+                        this.player.vy = 0;
+                    }
+                    this.resolveBuildingCollisions(this.player, 15);
+                }
+
+                // Cámara suave centrada en el jugador
+                this.camera.x += (this.player.x - this.camera.x) * Math.min(1, dt * 8);
+                this.camera.y += (this.player.y - this.camera.y) * Math.min(1, dt * 8);
+            }
+
+            /**
+             * Actualiza tráfico urbano, contaminantes y patrullas policiales en carretera
+             */
+            updateTrafficAI(dt) {
+                for (const v of this.vehicles) {
+                    if (this.player.inVehicleId === v.id) continue;
+
+                    if (v.type === 'police' && this.wantedLevel > 0) {
+                        const distToPlayer = Math.hypot(this.player.x - v.x, this.player.y - v.y);
+                        if (distToPlayer < 115 && this.policeCaughtCooldown <= 0 && this.gameState === 'PLAYING') {
+                            v.speed = 0;
+                            v.vx = 0;
+                            v.vy = 0;
+                            this.triggerPoliceQuiz();
+                            continue;
+                        }
+                        if (distToPlayer < 2600) {
+                            const targetAngle = Math.atan2(this.player.y - v.y, this.player.x - v.x);
+                            const diff = this.normalizeAngle(targetAngle - v.angle);
+                            v.angle = this.normalizeAngle(v.angle + Math.max(-3.6 * dt, Math.min(3.6 * dt, diff)));
+                            v.speed = v.maxSpeed * 0.98;
+                        }
+                    } else if (v.type === 'traffic' || v.type === 'polluter' || v.type === 'police') {
+                        v.aiTimer -= dt;
+                        v.speed = Math.max(145, Math.min(v.maxSpeed, v.speed || 180));
+
+                        const probeX = v.x + Math.cos(v.angle) * 75;
+                        const probeY = v.y + Math.sin(v.angle) * 75;
+
+                        if (!this.isOnRoad(probeX, probeY) || v.aiTimer <= 0) {
+                            v.aiTimer = 1.6 + Math.random() * 1.8;
+                            const candidates = [0, Math.PI / 2, Math.PI, -Math.PI / 2].filter((ang) => {
+                                const px = v.x + Math.cos(ang) * 95;
+                                const py = v.y + Math.sin(ang) * 95;
+                                return this.isOnRoad(px, py) && Math.abs(this.normalizeAngle(ang - v.angle)) < Math.PI * 0.85;
+                            });
+                            if (candidates.length > 0) {
+                                v.angle = candidates[Math.floor(Math.random() * candidates.length)];
+                            } else {
+                                v.angle = this.normalizeAngle(v.angle + Math.PI / 2);
+                            }
+                        }
+                    } else {
+                        // Vehículos de misión estacionados cuando no son conducidos
+                        v.speed *= Math.pow(0.15, dt);
+                        if (Math.abs(v.speed) < 3) v.speed = 0;
+                    }
+
+                    v.vx = Math.cos(v.angle) * v.speed;
+                    v.vy = Math.sin(v.angle) * v.speed;
+                    const prevX = v.x;
+                    const prevY = v.y;
+                    v.x += v.vx * dt;
+                    v.y += v.vy * dt;
+
+                    this.resolveBuildingCollisions(v, Math.max(v.w, v.h) * 0.42);
+
+                    // Si un coche de tráfico/policía/contaminante se sale de carretera, volver a su eje
+                    if ((v.type === 'traffic' || v.type === 'polluter' || v.type === 'police') && !this.isOnRoad(v.x, v.y)) {
+                        v.x = prevX;
+                        v.y = prevY;
+                        v.angle = this.normalizeAngle(v.angle + Math.PI / 2);
+                    }
+                }
+            }
+
+            /**
+             * Detecta choques únicamente cuando el vehículo que conduce el jugador impacta contra otro vehículo
+             */
+            handleVehicleCollisions() {
+                if (!this.player.inVehicleId) return;
+                const playerVeh = this.vehicles.find((v) => v.id === this.player.inVehicleId);
+                if (!playerVeh) return;
+
+                const pRadius = Math.max(playerVeh.w, playerVeh.h) * 0.44;
+
+                for (const other of this.vehicles) {
+                    if (other.id === playerVeh.id) continue;
+                    const oRadius = Math.max(other.w, other.h) * 0.44;
+                    const dx = other.x - playerVeh.x;
+                    const dy = other.y - playerVeh.y;
+                    const dist = Math.hypot(dx, dy);
+                    const minDist = pRadius + oRadius;
+
+                    if (dist > 0.001 && dist < minDist) {
+                        const nx = dx / dist;
+                        const ny = dy / dist;
+                        const overlap = minDist - dist;
+
+                        playerVeh.x -= nx * overlap * 0.55;
+                        playerVeh.y -= ny * overlap * 0.55;
+                        other.x += nx * overlap * 0.45;
+                        other.y += ny * overlap * 0.45;
+
+                        playerVeh.speed *= -0.35;
+                        other.speed = Math.max(other.speed, 110);
+
+                        this.player.x = playerVeh.x;
+                        this.player.y = playerVeh.y;
+                        this.player.speed = playerVeh.speed;
+
+                        const now = performance.now();
+                        if (now - this.lastCollisionTime > 380) {
+                            this.lastCollisionTime = now;
+                            this.health = Math.max(0, this.health - 5);
+                            this.screenShake = Math.max(this.screenShake, 8);
+                            this.sound.playCrash();
+                            this.spawnParticles((playerVeh.x + other.x) * 0.5, (playerVeh.y + other.y) * 0.5, '#f97316', 12);
+
+                            if (this.health <= 0) {
+                                this.triggerPlayerDeath();
+                            } else {
+                                this.showToast('💥 ¡Choque entre vehículos! -5% de salud.');
+                            }
+                            this.updateTopHUD();
+                        }
+                    }
+                }
+            }
+
+            /**
+             * Muestra la pantalla central de muerte al llegar a 0 de salud
+             */
+            triggerPlayerDeath() {
+                this.health = 0;
+                this.gameState = 'DEAD';
+                this.keys = {};
+                this.updateTopHUD();
+                document.getElementById('phoneModal').classList.add('hidden');
+                document.getElementById('pauseModal').classList.add('hidden');
+                document.getElementById('policeModal').classList.add('hidden');
+                document.getElementById('deadModal').classList.remove('hidden');
+            }
+
+            /**
+             * Actualiza peatones caminando por las aceras y detecta atropellos para activar la persecución policial
+             */
+            updatePedestrians(dt) {
+                for (let i = 0; i < this.pedestrians.length; i++) {
+                    const p = this.pedestrians[i];
+                    p.walkPhase += dt * 8;
+                    p.turnTimer -= dt;
+
+                    // Comprobar atropello únicamente si el jugador va subido en un vehículo
+                    if (this.player.inVehicleId) {
+                        const hitRadius = 34;
+                        const playerSpeedMag = Math.abs(this.player.speed);
+
+                        if (playerSpeedMag > 35 && Math.hypot(p.x - this.player.x, p.y - this.player.y) < hitRadius) {
+                            this.spawnParticles(p.x, p.y, '#ef4444', 14);
+                            this.screenShake = Math.max(this.screenShake, 9);
+                            this.wantedLevel = Math.min(3, Math.max(1, this.wantedLevel + 1));
+                            this.ecoScore = Math.max(0, this.ecoScore - 10);
+                            this.sound.playSiren();
+
+                            const resp = this.getSidewalkPoint(i + Math.floor(Math.random() * 40));
+                            p.x = resp.x;
+                            p.y = resp.y;
+                            p.turnTimer = 2.0;
+
+                            this.updateTopHUD();
+                            this.showToast('🚨 ¡Has atropellado a un peatón! ¡La policía te persigue!');
+                            continue;
+                        }
+                    }
+
+                    if (p.turnTimer <= 0) {
+                        p.turnTimer = 1.5 + Math.random() * 2.0;
+                        const ang = Math.random() * Math.PI * 2;
+                        const spd = 42 + Math.random() * 14;
+                        p.vx = Math.cos(ang) * spd;
+                        p.vy = Math.sin(ang) * spd;
+                    }
+
+                    const nextX = p.x + p.vx * dt;
+                    const nextY = p.y + p.vy * dt;
+
+                    // Mantener siempre al peatón estrictamente en la acera
+                    if (this.isOnSidewalk(nextX, nextY) && !this.isOnRoad(nextX, nextY) && !this.pointHitsBuilding(nextX, nextY, 8)) {
+                        p.x = nextX;
+                        p.y = nextY;
+                    } else {
+                        const fallbackSide = this.getSidewalkPoint(i + Math.floor(Math.random() * 12));
+                        const distFallback = Math.hypot(fallbackSide.x - p.x, fallbackSide.y - p.y);
+                        if (!this.isOnSidewalk(p.x, p.y) && distFallback < 140) {
+                            p.x = fallbackSide.x;
+                            p.y = fallbackSide.y;
+                        }
+                        p.vx = -p.vx;
+                        p.vy = -p.vy;
+                        p.turnTimer = 1.2;
+                    }
+                }
+            }
+
+            pointHitsBuilding(x, y, r) {
+                for (const b of this.buildings) {
+                    if (x + r > b.x && x - r < b.x + b.w && y + r > b.y && y - r < b.y + b.h) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            spawnParticles(x, y, color, count = 10) {
+                for (let i = 0; i < count; i++) {
+                    const ang = Math.random() * Math.PI * 2;
+                    const spd = 40 + Math.random() * 130;
+                    this.particles.push({
+                        x,
+                        y,
+                        vx: Math.cos(ang) * spd,
+                        vy: Math.sin(ang) * spd,
+                        life: 0.45 + Math.random() * 0.35,
+                        maxLife: 0.8,
+                        color,
+                        size: 3 + Math.random() * 3
+                    });
+                }
+            }
+
+            updateParticles(dt) {
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    const pt = this.particles[i];
+                    pt.x += pt.vx * dt;
+                    pt.y += pt.vy * dt;
+                    pt.life -= dt;
+                    if (pt.life <= 0) {
+                        this.particles.splice(i, 1);
+                    }
+                }
+            }
+
+            /**
+             * Bucle principal de simulación y renderizado
+             */
+            loop(now) {
+                const dt = Math.min(0.05, Math.max(0.001, (now - this.lastFrameTime) / 1000));
+                this.lastFrameTime = now;
+
+                if (this.gameState === 'PLAYING') {
+                    if (this.policeCooldown > 0) {
+                        this.policeCooldown = Math.max(0, this.policeCooldown - dt);
+                    }
+                    if (this.policeCaughtCooldown > 0) {
+                        this.policeCaughtCooldown = Math.max(0, this.policeCaughtCooldown - dt);
+                    }
+                    if (this.screenShake > 0) {
+                        this.screenShake = Math.max(0, this.screenShake - dt * 24);
+                    }
+
+                    this.updatePlayer(dt);
+                    this.updateTrafficAI(dt);
+                    this.handleVehicleCollisions();
+                    this.updatePedestrians(dt);
+                    this.updateActiveMission(dt);
+                    this.updateParticles(dt);
+                }
+
+                this.render();
+                this.renderMinimap();
+                requestAnimationFrame((t) => this.loop(t));
+            }
+
+            /**
+             * Renderiza el mundo urbano, aceras, objetivos, vehículos, peatones y jugador
+             */
+            render() {
+                const ctx = this.ctx;
+                const w = this.canvas.width;
+                const h = this.canvas.height;
+
+                ctx.fillStyle = '#070c16';
+                ctx.fillRect(0, 0, w, h);
+
+                ctx.save();
+                const shakeX = this.screenShake > 0 ? (Math.random() - 0.5) * this.screenShake : 0;
+                const shakeY = this.screenShake > 0 ? (Math.random() - 0.5) * this.screenShake : 0;
+                ctx.translate(w / 2 - this.camera.x + shakeX, h / 2 - this.camera.y + shakeY);
+
+                // Suelo base con rejilla sutil de bloques urbanos
+                ctx.fillStyle = '#0c1524';
+                ctx.fillRect(0, 0, this.worldSize, this.worldSize);
+                ctx.strokeStyle = 'rgba(148, 163, 184, 0.04)';
+                ctx.lineWidth = 1;
+                for (let g = 0; g <= this.worldSize; g += 140) {
+                    ctx.beginPath();
+                    ctx.moveTo(g, 0);
+                    ctx.lineTo(g, this.worldSize);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(0, g);
+                    ctx.lineTo(this.worldSize, g);
+                    ctx.stroke();
+                }
+
+                // Aceras a lo largo de las carreteras con bordillo definido
+                const swSpan = this.roadHalfWidth + this.sidewalkWidth;
+                ctx.fillStyle = '#3b4961';
+                for (const c of this.roadCoords) {
+                    ctx.fillRect(0, c - swSpan, this.worldSize, swSpan * 2);
+                    ctx.fillRect(c - swSpan, 0, swSpan * 2, this.worldSize);
+                }
+
+                ctx.strokeStyle = '#64748b';
+                ctx.lineWidth = 2;
+                for (const c of this.roadCoords) {
+                    ctx.strokeRect(0, c - swSpan, this.worldSize, swSpan * 2);
+                    ctx.strokeRect(c - swSpan, 0, swSpan * 2, this.worldSize);
+                }
+
+                // Calzadas principales con gradiente suave
+                ctx.fillStyle = '#1b2434';
+                for (const c of this.roadCoords) {
+                    ctx.fillRect(0, c - this.roadHalfWidth, this.worldSize, this.roadHalfWidth * 2);
+                    ctx.fillRect(c - this.roadHalfWidth, 0, this.roadHalfWidth * 2, this.worldSize);
+                }
+
+                // Pasos de peatones en intersecciones
+                ctx.fillStyle = 'rgba(241, 245, 249, 0.28)';
+                for (const cx of this.roadCoords) {
+                    for (const cy of this.roadCoords) {
+                        for (let s = -this.roadHalfWidth + 14; s <= this.roadHalfWidth - 14; s += 22) {
+                            ctx.fillRect(cx - 10, cy + s - 4, 20, 8);
+                            ctx.fillRect(cx + s - 4, cy - 10, 8, 20);
+                        }
+                    }
+                }
+
+                // Circunvalación perimetral
+                ctx.strokeStyle = '#3b4961';
+                ctx.lineWidth = (this.roadHalfWidth + this.sidewalkWidth) * 2;
+                ctx.strokeRect(this.ringMin, this.ringMin, this.ringMax - this.ringMin, this.ringMax - this.ringMin);
+
+                ctx.strokeStyle = '#1b2434';
+                ctx.lineWidth = this.roadHalfWidth * 2;
+                ctx.strokeRect(this.ringMin, this.ringMin, this.ringMax - this.ringMin, this.ringMax - this.ringMin);
+
+                // Líneas discontinuas centrales
+                ctx.save();
+                ctx.strokeStyle = 'rgba(250, 204, 21, 0.42)';
+                ctx.lineWidth = 3;
+                ctx.setLineDash([24, 24]);
+                for (const c of this.roadCoords) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, c);
+                    ctx.lineTo(this.worldSize, c);
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.moveTo(c, 0);
+                    ctx.lineTo(c, this.worldSize);
+                    ctx.stroke();
+                }
+                ctx.restore();
+
+                // Edificios con sombra proyectada, azotea y detalle arquitectónico
+                for (const b of this.buildings) {
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(2, 6, 23, 0.55)';
+                    ctx.beginPath();
+                    ctx.roundRect(b.x + 8, b.y + 10, b.w, b.h, 14);
+                    ctx.fill();
+
+                    ctx.fillStyle = b.color;
+                    ctx.beginPath();
+                    ctx.roundRect(b.x, b.y, b.w, b.h, 14);
+                    ctx.fill();
+
+                    ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    // Azotea interior / jardín ecológico
+                    ctx.fillStyle = b.isPark ? 'rgba(16, 185, 129, 0.24)' : 'rgba(255, 255, 255, 0.05)';
+                    ctx.beginPath();
+                    ctx.roundRect(b.x + 14, b.y + 14, Math.max(20, b.w - 28), Math.max(20, b.h - 28), 9);
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                // Marcador del objetivo de misión activa
+                const target = this.getCurrentMissionTarget();
+                if (target) {
+                    const now = performance.now();
+                    const pulse = 1 + Math.sin(now * 0.005) * 0.06;
+                    const rot = now * 0.0014;
+                    const baseR = 96;
+                    const m = this.activeMission;
+
+                    // Color temático según el modo de la misión
+                    let primary = '#10b981';
+                    let secondary = '#6ee7b7';
+                    let badgeIcon = '⚡';
+                    if (m) {
+                        if (m.mode === 'dwell_zones') {
+                            primary = '#0ea5e9';
+                            secondary = '#7dd3fc';
+                            badgeIcon = '♻️';
+                        } else if (m.mode === 'intercept_polluters') {
+                            primary = '#38bdf8';
+                            secondary = '#bae6fd';
+                            badgeIcon = '🌿';
+                        } else if (m.mode === 'bus_route') {
+                            primary = '#f59e0b';
+                            secondary = '#fde68a';
+                            badgeIcon = '🚌';
+                        }
+                    }
+
+                    ctx.save();
+                    ctx.translate(target.x, target.y);
+
+                    // 1. Resplandor radial en el asfalto
+                    const radGrad = ctx.createRadialGradient(0, 0, 12, 0, 0, baseR * 1.15);
+                    radGrad.addColorStop(0, `${primary}44`);
+                    radGrad.addColorStop(0.65, `${primary}1c`);
+                    radGrad.addColorStop(1, 'rgba(16, 185, 129, 0)');
+                    ctx.fillStyle = radGrad;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, baseR * 1.15, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // 2. Onda expansiva continua hacia el exterior
+                    const waveProgress = (now % 1800) / 1800;
+                    const waveR = 32 + waveProgress * (baseR * 0.85);
+                    ctx.strokeStyle = secondary;
+                    ctx.globalAlpha = (1 - waveProgress) * 0.65;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, waveR, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+
+                    // 3. Anillo exterior giratorio segmentado
+                    ctx.save();
+                    ctx.rotate(rot);
+                    ctx.strokeStyle = primary;
+                    ctx.lineWidth = 4;
+                    ctx.setLineDash([28, 16, 10, 16]);
+                    ctx.beginPath();
+                    ctx.arc(0, 0, baseR * pulse, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+
+                    // 4. Anillo interior contrarrotatorio + marcas cardinales
+                    ctx.save();
+                    ctx.rotate(-rot * 1.5);
+                    ctx.strokeStyle = secondary;
+                    ctx.lineWidth = 2.5;
+                    ctx.setLineDash([12, 14]);
+                    ctx.beginPath();
+                    ctx.arc(0, 0, baseR * 0.68, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    // 4 balizas luminosas alrededor del anillo
+                    ctx.setLineDash([]);
+                    for (let k = 0; k < 4; k++) {
+                        const a = (k * Math.PI) / 2;
+                        const bx = Math.cos(a) * baseR * 0.84;
+                        const by = Math.sin(a) * baseR * 0.84;
+                        ctx.fillStyle = '#ffffff';
+                        ctx.beginPath();
+                        ctx.arc(bx, by, 3.5, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    ctx.restore();
+
+                    // 5. Arco de progreso de permanencia (cuando la misión requiere esperar en la zona)
+                    if (m && (m.mode === 'dwell_zones' || m.mode === 'bus_route') && m.dwellTimer > 0) {
+                        const pct = Math.min(1, m.dwellTimer / m.dwellSeconds);
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = 7;
+                        ctx.lineCap = 'round';
+                        ctx.beginPath();
+                        ctx.arc(0, 0, baseR * 0.84, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2);
+                        ctx.stroke();
+                    }
+
+                    // 6. Núcleo central con icono ODS
+                    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 24, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = secondary;
+                    ctx.lineWidth = 2.5;
+                    ctx.stroke();
+
+                    ctx.font = '18px Inter, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(badgeIcon, 0, 1);
+
+                    // 7. Cartel flotante superior con fondo redondeado
+                    const labelText = target.label || 'Objetivo ODS';
+                    ctx.font = '800 13px Inter, sans-serif';
+                    const textW = ctx.measureText(labelText).width;
+                    const pillW = textW + 24;
+                    const pillH = 26;
+                    const pillY = -baseR - 26;
+
+                    ctx.fillStyle = 'rgba(9, 13, 22, 0.88)';
+                    ctx.beginPath();
+                    ctx.roundRect(-pillW / 2, pillY - pillH / 2, pillW, pillH, 13);
+                    ctx.fill();
+                    ctx.strokeStyle = primary;
+                    ctx.lineWidth = 1.8;
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.fillText(labelText, 0, pillY + 0.5);
+
+                    ctx.restore();
+                }
+
+                // Peatones con sombra y detalle de hombros/cabeza
+                for (const p of this.pedestrians) {
+                    const bob = Math.sin(p.walkPhase) * 2;
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(2, 6, 23, 0.45)';
+                    ctx.beginPath();
+                    ctx.ellipse(p.x + 2, p.y + 4, 7.5, 4.5, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y + bob, 6.8, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(15, 23, 42, 0.65)';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#fde68a';
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y - 3.5 + bob, 3.6, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                // Vehículos con sombra, ruedas, faros y luces traseras
+                const activeRequiredType = this.activeMission ? this.activeMission.vehicleType : null;
+                for (const v of this.vehicles) {
+                    ctx.save();
+                    ctx.translate(v.x, v.y);
+                    ctx.rotate(v.angle);
+
+                    // Aro indicador si el vehículo corresponde a la misión activa
+                    if (activeRequiredType && v.type === activeRequiredType && this.player.inVehicleId !== v.id) {
+                        ctx.strokeStyle = '#fbbf24';
+                        ctx.lineWidth = 3;
+                        ctx.beginPath();
+                        ctx.arc(0, 0, Math.max(v.w, v.h) * 0.75, 0, Math.PI * 2);
+                        ctx.stroke();
+                    }
+
+                    // Sombra del vehículo
+                    ctx.fillStyle = 'rgba(2, 6, 23, 0.52)';
+                    ctx.beginPath();
+                    ctx.roundRect(-v.w / 2 + 4, -v.h / 2 + 6, v.w, v.h, 7);
+                    ctx.fill();
+
+                    // Ruedas laterales
+                    ctx.fillStyle = '#090d16';
+                    const wx = v.w * 0.28;
+                    const wy = v.h / 2 + 1.5;
+                    ctx.fillRect(-wx - 5, -wy - 2, 10, 4);
+                    ctx.fillRect(wx - 5, -wy - 2, 10, 4);
+                    ctx.fillRect(-wx - 5, wy - 2, 10, 4);
+                    ctx.fillRect(wx - 5, wy - 2, 10, 4);
+
+                    // Carrocería
+                    ctx.fillStyle = v.color;
+                    ctx.beginPath();
+                    ctx.roundRect(-v.w / 2, -v.h / 2, v.w, v.h, 6);
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+
+                    // Techo / cabina
+                    ctx.fillStyle = v.accent;
+                    ctx.beginPath();
+                    ctx.roundRect(-v.w * 0.18, -v.h * 0.34, v.w * 0.42, v.h * 0.68, 4);
+                    ctx.fill();
+
+                    // Faros delanteros y pilotos traseros
+                    ctx.fillStyle = '#fef08a';
+                    ctx.fillRect(v.w / 2 - 3, -v.h * 0.34, 3, 5);
+                    ctx.fillRect(v.w / 2 - 3, v.h * 0.34 - 5, 3, 5);
+
+                    ctx.fillStyle = '#f87171';
+                    ctx.fillRect(-v.w / 2, -v.h * 0.34, 3, 5);
+                    ctx.fillRect(-v.w / 2, v.h * 0.34 - 5, 3, 5);
+
+                    // Sirena policial si hay nivel de búsqueda
+                    if (v.type === 'police' && this.wantedLevel > 0) {
+                        const flash = Math.sin(performance.now() * 0.025) > 0;
+                        ctx.fillStyle = flash ? '#ef4444' : '#38bdf8';
+                        ctx.beginPath();
+                        ctx.arc(0, 0, 6.5, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    ctx.restore();
+                }
+
+                // Jugador a pie (cuando no está dentro de un vehículo)
+                if (!this.player.inVehicleId) {
+                    ctx.save();
+                    ctx.translate(this.player.x, this.player.y);
+                    ctx.fillStyle = '#10b981';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 9, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                // Partículas
+                for (const pt of this.particles) {
+                    ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
+                    ctx.fillStyle = pt.color;
+                    ctx.beginPath();
+                    ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+
+                ctx.restore();
+
+                // Flecha de guía hacia el objetivo actual de la misión
+                if (target && this.gameState === 'PLAYING') {
+                    this.renderGuidanceArrow(target.x, target.y);
+                }
+            }
+
+            /**
+             * Dibuja una flecha discreta cerca del coche apuntando al objetivo actual de la misión
+             */
+            renderGuidanceArrow(tx, ty) {
+                const dx = tx - this.player.x;
+                const dy = ty - this.player.y;
+                const dist = Math.hypot(dx, dy);
+                if (dist < 110) return;
+
+                const angle = Math.atan2(dy, dx);
+                const orbitRadius = this.player.inVehicleId ? 68 : 48;
+                const cx = this.canvas.width / 2 + Math.cos(angle) * orbitRadius;
+                const cy = this.canvas.height / 2 + Math.sin(angle) * orbitRadius;
+
+                const ctx = this.ctx;
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(angle);
+                ctx.fillStyle = '#34d399';
+                ctx.beginPath();
+                ctx.moveTo(11, 0);
+                ctx.lineTo(-7, -6.5);
+                ctx.lineTo(-3.5, 0);
+                ctx.lineTo(-7, 6.5);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            }
+
+            /**
+             * Renderiza el minimapa estilo radar GPS de alta nitidez con bloques, parques, carreteras, vehículo de misión, policías, objetivo y jugador
+             */
+            renderMinimap() {
+                const mCtx = this.minimapCtx;
+                const dpr = window.devicePixelRatio || 1;
+                const cssSize = 164;
+                if (this.minimapCanvas.width !== cssSize * dpr || this.minimapCanvas.height !== cssSize * dpr) {
+                    this.minimapCanvas.width = cssSize * dpr;
+                    this.minimapCanvas.height = cssSize * dpr;
+                    this.minimapCanvas.style.width = `${cssSize}px`;
+                    this.minimapCanvas.style.height = `${cssSize}px`;
+                }
+
+                mCtx.save();
+                mCtx.scale(dpr, dpr);
+
+                const mw = cssSize;
+                const mh = cssSize;
+                const cx = mw / 2;
+                const cy = mh / 2;
+                const radius = mw / 2 - 2;
+                const scale = (mw - 16) / this.worldSize;
+                const pad = 8;
+                const now = performance.now();
+
+                mCtx.clearRect(0, 0, mw, mh);
+
+                // Recorte circular estilo GPS
+                mCtx.beginPath();
+                mCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+                mCtx.clip();
+
+                // Fondo base con degradado radial
+                const bgGrad = mCtx.createRadialGradient(cx, cy, 8, cx, cy, radius);
+                bgGrad.addColorStop(0, '#0f1c2e');
+                bgGrad.addColorStop(1, '#070d18');
+                mCtx.fillStyle = bgGrad;
+                mCtx.fillRect(0, 0, mw, mh);
+
+                // Bloques urbanos y zonas verdes
+                for (const b of this.buildings) {
+                    mCtx.fillStyle = b.isPark ? 'rgba(16, 185, 129, 0.22)' : 'rgba(30, 41, 59, 0.72)';
+                    mCtx.fillRect(
+                        pad + b.x * scale,
+                        pad + b.y * scale,
+                        Math.max(2, b.w * scale),
+                        Math.max(2, b.h * scale)
+                    );
+                }
+
+                // Circunvalación perimetral
+                mCtx.strokeStyle = 'rgba(100, 116, 139, 0.65)';
+                mCtx.lineWidth = 3;
+                mCtx.strokeRect(
+                    pad + this.ringMin * scale,
+                    pad + this.ringMin * scale,
+                    (this.ringMax - this.ringMin) * scale,
+                    (this.ringMax - this.ringMin) * scale
+                );
+
+                // Carreteras principales con doble capa (asfalto + eje)
+                mCtx.strokeStyle = '#475569';
+                mCtx.lineWidth = 3.5;
+                for (const c of this.roadCoords) {
+                    const p = pad + c * scale;
+                    mCtx.beginPath();
+                    mCtx.moveTo(pad, p);
+                    mCtx.lineTo(mw - pad, p);
+                    mCtx.stroke();
+
+                    mCtx.beginPath();
+                    mCtx.moveTo(p, pad);
+                    mCtx.lineTo(p, mh - pad);
+                    mCtx.stroke();
+                }
+
+                mCtx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+                mCtx.lineWidth = 1;
+                for (const c of this.roadCoords) {
+                    const p = pad + c * scale;
+                    mCtx.beginPath();
+                    mCtx.moveTo(pad, p);
+                    mCtx.lineTo(mw - pad, p);
+                    mCtx.stroke();
+
+                    mCtx.beginPath();
+                    mCtx.moveTo(p, pad);
+                    mCtx.lineTo(p, mh - pad);
+                    mCtx.stroke();
+                }
+
+                // Anillos de radar concéntricos sutiles
+                mCtx.strokeStyle = 'rgba(52, 211, 153, 0.1)';
+                mCtx.lineWidth = 1;
+                [0.35, 0.68].forEach((rRatio) => {
+                    mCtx.beginPath();
+                    mCtx.arc(cx, cy, radius * rRatio, 0, Math.PI * 2);
+                    mCtx.stroke();
+                });
+
+                const px = pad + this.player.x * scale;
+                const py = pad + this.player.y * scale;
+                const target = this.getCurrentMissionTarget();
+
+                // Línea de ruta GPS punteada desde el jugador hasta el objetivo
+                if (target) {
+                    const tx = pad + target.x * scale;
+                    const ty = pad + target.y * scale;
+                    mCtx.save();
+                    mCtx.strokeStyle = 'rgba(52, 211, 153, 0.78)';
+                    mCtx.lineWidth = 1.8;
+                    mCtx.setLineDash([4, 3]);
+                    mCtx.beginPath();
+                    mCtx.moveTo(px, py);
+                    mCtx.lineTo(tx, ty);
+                    mCtx.stroke();
+                    mCtx.restore();
+                }
+
+                // Vehículo requerido de la misión (si el jugador aún no va dentro)
+                const activeRequiredType = this.activeMission ? this.activeMission.vehicleType : null;
+                if (activeRequiredType) {
+                    const missionVeh = this.vehicles.find((v) => v.type === activeRequiredType);
+                    if (missionVeh && this.player.inVehicleId !== missionVeh.id) {
+                        const vx = pad + missionVeh.x * scale;
+                        const vy = pad + missionVeh.y * scale;
+                        const vPulse = 4.5 + Math.sin(now * 0.008) * 1.5;
+                        mCtx.strokeStyle = 'rgba(251, 191, 36, 0.65)';
+                        mCtx.lineWidth = 1.5;
+                        mCtx.beginPath();
+                        mCtx.arc(vx, vy, vPulse, 0, Math.PI * 2);
+                        mCtx.stroke();
+
+                        mCtx.fillStyle = '#fbbf24';
+                        mCtx.beginPath();
+                        mCtx.arc(vx, vy, 2.8, 0, Math.PI * 2);
+                        mCtx.fill();
+                    }
+                }
+
+                // Patrullas policiales
+                for (const v of this.vehicles) {
+                    if (v.type === 'police') {
+                        const polX = pad + v.x * scale;
+                        const polY = pad + v.y * scale;
+                        if (this.wantedLevel > 0) {
+                            const flash = Math.sin(now * 0.025) > 0;
+                            mCtx.fillStyle = flash ? '#ef4444' : '#38bdf8';
+                            mCtx.beginPath();
+                            mCtx.arc(polX, polY, 3.4, 0, Math.PI * 2);
+                            mCtx.fill();
+                        } else {
+                            mCtx.fillStyle = '#3b82f6';
+                            mCtx.beginPath();
+                            mCtx.arc(polX, polY, 2.5, 0, Math.PI * 2);
+                            mCtx.fill();
+                        }
+                    }
+                }
+
+                // Objetivo actual con pulso animado
+                if (target) {
+                    const tx = pad + target.x * scale;
+                    const ty = pad + target.y * scale;
+                    const pulseR = 5.5 + Math.sin(now * 0.007) * 2.2;
+
+                    mCtx.strokeStyle = 'rgba(52, 211, 153, 0.65)';
+                    mCtx.lineWidth = 1.5;
+                    mCtx.beginPath();
+                    mCtx.arc(tx, ty, pulseR, 0, Math.PI * 2);
+                    mCtx.stroke();
+
+                    mCtx.fillStyle = '#10b981';
+                    mCtx.beginPath();
+                    mCtx.arc(tx, ty, 3.6, 0, Math.PI * 2);
+                    mCtx.fill();
+
+                    mCtx.fillStyle = '#ecfdf5';
+                    mCtx.beginPath();
+                    mCtx.arc(tx, ty, 1.4, 0, Math.PI * 2);
+                    mCtx.fill();
+                }
+
+                // Marcador direccional del jugador (triángulo orientable)
+                mCtx.save();
+                mCtx.translate(px, py);
+                mCtx.rotate(this.player.angle);
+
+                mCtx.fillStyle = 'rgba(250, 204, 21, 0.25)';
+                mCtx.beginPath();
+                mCtx.arc(0, 0, 7, 0, Math.PI * 2);
+                mCtx.fill();
+
+                mCtx.fillStyle = '#facc15';
+                mCtx.strokeStyle = '#090d16';
+                mCtx.lineWidth = 1.2;
+                mCtx.beginPath();
+                mCtx.moveTo(6.5, 0);
+                mCtx.lineTo(-4.5, -4);
+                mCtx.lineTo(-2.5, 0);
+                mCtx.lineTo(-4.5, 4);
+                mCtx.closePath();
+                mCtx.fill();
+                mCtx.stroke();
+                mCtx.restore();
+
+                // Aro exterior del radar
+                mCtx.strokeStyle = 'rgba(52, 211, 153, 0.38)';
+                mCtx.lineWidth = 2;
+                mCtx.beginPath();
+                mCtx.arc(cx, cy, radius - 0.5, 0, Math.PI * 2);
+                mCtx.stroke();
+
+                mCtx.restore();
+            }
+
+            updateTopHUD() {
+                document.getElementById('healthBar').style.width = `${this.health}%`;
+                document.getElementById('healthText').textContent = `${Math.round(this.health)}%`;
+
+                document.getElementById('ecoBar').style.width = `${this.ecoScore}%`;
+                document.getElementById('ecoText').textContent = `${Math.round(this.ecoScore)}`;
+
+                const badge = document.getElementById('wantedBadge');
+                if (this.wantedLevel > 0) {
+                    badge.className = 'text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-rose-500/25 text-rose-300 border border-rose-500/50';
+                    badge.textContent = `🚨 POLICÍA ${'★'.repeat(this.wantedLevel)}`;
+                } else {
+                    badge.className = 'text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700';
+                    badge.textContent = '🟢 SIN ALERTA';
+                }
+            }
+
+            updateMissionHUD() {
+                const m = this.activeMission;
+                if (!m) return;
+
+                document.getElementById('missionTitle').textContent = `${m.ods} · ${m.title}`;
+                document.getElementById('missionProgress').textContent = `${m.stepIndex}/${m.totalSteps}`;
+                document.getElementById('missionDesc').textContent = m.description;
+
+                const currentVeh = this.player.inVehicleId
+                    ? this.vehicles.find((v) => v.id === this.player.inVehicleId)
+                    : null;
+
+                if (!currentVeh || currentVeh.type !== m.vehicleType) {
+                    document.getElementById('missionHint').textContent = `👉 Busca y sube al "${m.vehicleLabel}" (marcado con aro dorado).`;
+                } else if (m.mode === 'dwell_zones' || m.mode === 'bus_route') {
+                    const pct = Math.min(100, Math.round((m.dwellTimer / m.dwellSeconds) * 100));
+                    document.getElementById('missionHint').textContent = `⏳ Permanencia en punto objetivo: ${pct}%`;
+                } else {
+                    document.getElementById('missionHint').textContent = `✅ Conduciendo ${m.vehicleLabel}. ¡Dirígete al objetivo verde!`;
+                }
+            }
+
+            openPhoneModal() {
+                if (this.gameState === 'QUIZ') return;
+                this.renderMissionList();
+                document.getElementById('phoneModal').classList.remove('hidden');
+            }
+
+            closePhoneModal() {
+                document.getElementById('phoneModal').classList.add('hidden');
+            }
+
+            renderMissionList() {
+                const container = document.getElementById('missionListContainer');
+                container.innerHTML = '';
+
+                this.missionTemplates.forEach((tpl) => {
+                    const isCurrent = this.activeMission && this.activeMission.id === tpl.id;
+                    const card = document.createElement('div');
+                    card.className = `p-3.5 rounded-2xl border ${isCurrent ? 'bg-emerald-500/15 border-emerald-400/50' : 'bg-slate-900/80 border-slate-800'} flex items-center justify-between gap-3`;
+
+                    const info = document.createElement('div');
+                    info.innerHTML = `
+                        <div class="text-[11px] font-extrabold text-emerald-300">${tpl.ods} · Vehículo: ${tpl.vehicleLabel}</div>
+                        <div class="text-sm font-black text-white">${tpl.title}</div>
+                        <div class="text-xs text-slate-300 mt-0.5">${tpl.description}</div>
+                    `;
+
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'shrink-0 px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition cursor-pointer';
+                    btn.textContent = isCurrent ? 'Reiniciar' : 'Activar';
+                    btn.addEventListener('click', () => {
+                        this.startMission(tpl.id, false);
+                        this.closePhoneModal();
+                    });
+
+                    card.appendChild(info);
+                    card.appendChild(btn);
+                    container.appendChild(card);
+                });
+            }
+
+            showToast(message) {
+                const banner = document.getElementById('toastBanner');
+                const textEl = document.getElementById('toastText');
+                if (!banner || !textEl) return;
+                textEl.textContent = message;
+                banner.classList.remove('hidden');
+
+                if (this.toastTimeout) {
+                    clearTimeout(this.toastTimeout);
+                }
+                this.toastTimeout = setTimeout(() => {
+                    banner.classList.add('hidden');
+                }, 3200);
+            }
+
+            normalizeAngle(a) {
+                while (a > Math.PI) a -= Math.PI * 2;
+                while (a < -Math.PI) a += Math.PI * 2;
+                return a;
+            }
+
+            resizeCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+
+            bindEvents() {
+                window.addEventListener('resize', () => this.resizeCanvas());
+
+                window.addEventListener('keydown', (e) => {
+                    this.keys[e.code] = true;
+                    if (e.code === 'KeyE') {
+                        this.toggleEnterExitVehicle();
+                    } else if (e.code === 'KeyM') {
+                        const phone = document.getElementById('phoneModal');
+                        if (phone && phone.classList.contains('hidden')) {
+                            this.openPhoneModal();
+                        } else {
+                            this.closePhoneModal();
+                        }
+                    } else if (e.code === 'Escape') {
+                        if (this.gameState === 'PLAYING') {
+                            this.gameState = 'PAUSED';
+                            document.getElementById('pauseModal').classList.remove('hidden');
+                        } else if (this.gameState === 'PAUSED') {
+                            this.gameState = 'PLAYING';
+                            document.getElementById('pauseModal').classList.add('hidden');
+                        }
+                    }
+                });
+
+                window.addEventListener('keyup', (e) => {
+                    this.keys[e.code] = false;
+                });
+
+                document.querySelectorAll('[data-key]').forEach((btn) => {
+                    const keyCode = btn.getAttribute('data-key');
+                    const press = (e) => {
+                        if (e) e.preventDefault();
+                        this.keys[keyCode] = true;
+                    };
+                    const release = (e) => {
+                        if (e) e.preventDefault();
+                        this.keys[keyCode] = false;
+                    };
+                    btn.addEventListener('mousedown', press);
+                    btn.addEventListener('mouseup', release);
+                    btn.addEventListener('mouseleave', release);
+                    btn.addEventListener('touchstart', press, { passive: false });
+                    btn.addEventListener('touchend', release, { passive: false });
+                    btn.addEventListener('touchcancel', release, { passive: false });
+                });
+
+                const btnEnterExit = document.getElementById('btnEnterExit');
+                if (btnEnterExit) {
+                    btnEnterExit.addEventListener('click', () => this.toggleEnterExitVehicle());
+                }
+
+                document.getElementById('btnStartGame').addEventListener('click', () => {
+                    this.sound.ensureContext();
+                    document.getElementById('startModal').classList.add('hidden');
+                    this.gameState = 'PLAYING';
+                    this.showToast('🌱 ¡Bienvenido a Eco City Drift: ODS! Pulsa E junto a la Furgoneta Solar.');
+                });
+
+                document.getElementById('btnSound').addEventListener('click', (e) => {
+                    this.sound.enabled = !this.sound.enabled;
+                    e.currentTarget.textContent = this.sound.enabled ? '🔊 Sonido' : '🔇 Silencio';
+                });
+
+                document.getElementById('btnPhone').addEventListener('click', () => this.openPhoneModal());
+                document.getElementById('btnClosePhone').addEventListener('click', () => this.closePhoneModal());
+
+                document.getElementById('btnPause').addEventListener('click', () => {
+                    if (this.gameState === 'PLAYING') {
+                        this.gameState = 'PAUSED';
+                        document.getElementById('pauseModal').classList.remove('hidden');
+                    }
+                });
+
+                document.getElementById('btnResume').addEventListener('click', () => {
+                    this.gameState = 'PLAYING';
+                    document.getElementById('pauseModal').classList.add('hidden');
+                });
+
+                const fullReset = () => {
+                    this.health = 100;
+                    this.ecoScore = 50;
+                    this.wantedLevel = 0;
+                    this.completedMissionIds.clear();
+                    this.keys = {};
+                    this.buildWorld();
+                    this.startMission('ods7_solar', false);
+                    this.updateTopHUD();
+                    this.updateMissionHUD();
+                    document.getElementById('pauseModal').classList.add('hidden');
+                    document.getElementById('deadModal').classList.add('hidden');
+                    document.getElementById('victoryModal').classList.add('hidden');
+                    document.getElementById('policeModal').classList.add('hidden');
+                    this.gameState = 'PLAYING';
+                };
+
+                document.getElementById('btnRestartWorld').addEventListener('click', fullReset);
+                document.getElementById('btnDeadRestart').addEventListener('click', fullReset);
+                document.getElementById('btnVictoryRestart').addEventListener('click', fullReset);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            window.game = new EcoCityDriftGame();
+        });
+    </script>
+</body>
+</html>
